@@ -25,9 +25,13 @@ executable notes
   main-is:             Main.hs
   -- other-modules:       
   -- other-extensions:    
-  build-depends:       base >=4.8 && <5
-                     , gtk3 == 0.14.*
-                     , webkitgtk3 == 0.14.*
+  build-depends:       base
+                     , base-prelude
+                     , gtk3
+                     , random
+                     , text-all
+                     , transformers
+                     , webkitgtk3
   ghc-options:         -Wall -fno-warn-unused-do-bind
   hs-source-dirs:      src
   default-language:    Haskell2010
