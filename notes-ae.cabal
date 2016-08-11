@@ -1,4 +1,6 @@
-name:                notes
+-- It's called notes-ae instead of notes so that haskell-mode would work
+-- normally with it (see https://github.com/haskell/haskell-mode/issues/1398)
+name:                notes-ae
 version:             0.1.0.0
 synopsis:            A note-taking program
 description:
