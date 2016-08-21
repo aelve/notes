@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -14,28 +16,28 @@ where
 import BasePrelude hiding (on, Control)
 -- Monads
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
 -- Text
 import qualified Data.Text.All as T
 import Data.Text.All (Text)
 -- Interpolation
 import NeatInterpolation
 -- GTK
-import Graphics.UI.Gtk
+import Graphics.UI.Gtk hiding (get, set)
+import qualified Graphics.UI.Gtk as GTK
 import Graphics.UI.Gtk.WebKit.WebView
 import Graphics.UI.Gtk.WebKit.WebSettings
 import Graphics.UI.Gtk.WebKit.WebInspector
-import Graphics.UI.Gtk.WebKit.DOM.Document (DocumentClass, querySelector)
+import Graphics.UI.Gtk.WebKit.DOM.Document (querySelector)
 import Graphics.UI.Gtk.WebKit.Types hiding (Text)
 import qualified Graphics.UI.Gtk.WebKit.DOM.EventM as Ev
 import qualified Graphics.UI.Gtk.WebKit.DOM.Element as E
-import qualified Graphics.UI.Gtk.WebKit.DOM.HTMLInputElement as I
-import qualified Graphics.UI.Gtk.WebKit.DOM.Node as N
+import qualified Graphics.UI.Gtk.WebKit.DOM.Node as Node
+
+import qualified Graphics.UI.Gtk.WebKit.DOM.HTMLTextAreaElement as TextAreaElement
+import qualified Graphics.UI.Gtk.WebKit.DOM.HTMLInputElement as InputElement
 
 
-fromMaybeM :: Monad m => String -> Maybe a -> m a
-fromMaybeM st = maybe (fail st) return
-
+main :: IO ()
 main = do
 
   -- Init GTK.
@@ -83,14 +85,14 @@ main = do
   |] (Just "text/html") ""
 
   wv `on` documentLoadFinished $ \_ -> do
-    doc <- webViewGetDomDocument wv >>= fromMaybeM "no document"
+    Just doc <- webViewGetDomDocument wv
     input  <- castToHTMLInputElement <$> select doc "#input"
     result <- select doc "#result"
     input `Ev.on` E.keyDown $ do
       i <- Ev.uiKeyCode
       when (i == 13 || i == 10) $ do
-        val <- value input
-        N.setTextContent result (Just (T.reverse val))
+        val <- get input _value
+        set result [_text := T.reverse val]
     return ()
 
   --wv `on` keyReleaseEvent $ tryEvent $ do
@@ -103,6 +105,10 @@ main = do
   widgetShowAll window
   mainGUI
 
+----------------------------------------------------------------------------
+-- Utils
+----------------------------------------------------------------------------
+
 select :: (MonadIO m, DocumentClass self) => self -> Text -> m Element
 select d s = do
   r <- querySelector d s
@@ -110,12 +116,45 @@ select d s = do
     Nothing -> error ("select: couldn't find " ++ show s)
     Just e  -> return e
 
-value :: (MonadIO m, HTMLInputElementClass self) => self -> m Text
-value e = do
-  r <- I.getValue e
-  case r of
-    Nothing -> error "value: couldn't get value"
-    Just v  -> return v
+class HasValue e where
+  get_value_maybe :: e -> IO (Maybe Text)
+  set_value_maybe :: e -> Maybe Text -> IO ()
+  _value :: ReadWriteAttr e Text Text
+  _value = newAttr
+    (\e -> do mbV <- get_value_maybe e
+              case mbV of
+                Nothing -> error "value: can't get value"
+                Just v  -> return v)
+    (\e x -> set_value_maybe e (Just x))
+
+instance HasValue HTMLTextAreaElement where
+  get_value_maybe = TextAreaElement.getValue
+  set_value_maybe = TextAreaElement.setValue
+instance HasValue HTMLInputElement where
+  get_value_maybe = InputElement.getValue
+  set_value_maybe = InputElement.setValue
+
+class HasText e where
+  get_text_maybe :: e -> IO (Maybe Text)
+  set_text_maybe :: e -> Maybe Text -> IO ()
+  _text :: ReadWriteAttr e Text Text
+  _text = newAttr
+    (\e -> do mbV <- get_text_maybe e
+              case mbV of
+                Nothing -> error "text: can't get text"
+                Just v  -> return v)
+    (\e x -> set_text_maybe e (Just x))
+
+instance NodeClass n => HasText n where
+  get_text_maybe = Node.getTextContent
+  set_text_maybe = Node.setTextContent
+
+get :: MonadIO m => o -> ReadWriteAttr o a b -> m a
+get o a = liftIO (GTK.get o a)
+
+set :: MonadIO m => o -> [AttrOp o] -> m ()
+set o as = liftIO (GTK.set o as)
+
 
 {-
 
