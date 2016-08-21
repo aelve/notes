@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
@@ -17,16 +18,23 @@ import Control.Monad.Trans.Class
 -- Text
 import qualified Data.Text.All as T
 import Data.Text.All (Text)
--- Random
-import System.Random
+-- Interpolation
+import NeatInterpolation
 -- GTK
 import Graphics.UI.Gtk
 import Graphics.UI.Gtk.WebKit.WebView
 import Graphics.UI.Gtk.WebKit.WebSettings
 import Graphics.UI.Gtk.WebKit.WebInspector
+import Graphics.UI.Gtk.WebKit.DOM.Document (DocumentClass, querySelector)
+import Graphics.UI.Gtk.WebKit.Types hiding (Text)
+import qualified Graphics.UI.Gtk.WebKit.DOM.EventM as Ev
+import qualified Graphics.UI.Gtk.WebKit.DOM.Element as E
+import qualified Graphics.UI.Gtk.WebKit.DOM.HTMLInputElement as I
+import qualified Graphics.UI.Gtk.WebKit.DOM.Node as N
 
 
-
+fromMaybeM :: Monad m => String -> Maybe a -> m a
+fromMaybeM st = maybe (fail st) return
 
 main = do
 
@@ -44,6 +52,8 @@ main = do
   sw  <- scrolledWindowNew Nothing Nothing
   wv  <- webViewNew
   set window [
+    windowDefaultWidth := 700,
+    windowDefaultHeight := 500,
     containerChild := v,
     containerBorderWidth := 2 ]
   wvs <- get wv webViewWebSettings
@@ -67,6 +77,22 @@ main = do
     url :: Text <- entryGetText bar
     webViewLoadUri wv url
 
+  webViewLoadString wv [text|
+    <input type="text" id="input" placeholder="string to reverse">
+    <div id="result" style="font-size:20px"></div>
+  |] (Just "text/html") ""
+
+  wv `on` documentLoadFinished $ \_ -> do
+    doc <- webViewGetDomDocument wv >>= fromMaybeM "no document"
+    input  <- castToHTMLInputElement <$> select doc "#input"
+    result <- select doc "#result"
+    input `Ev.on` E.keyDown $ do
+      i <- Ev.uiKeyCode
+      when (i == 13 || i == 10) $ do
+        val <- value input
+        N.setTextContent result (Just (T.reverse val))
+    return ()
+
   --wv `on` keyReleaseEvent $ tryEvent $ do
   --  [Control] <- eventModifier
   --  "i" <- eventKeyName
@@ -76,6 +102,20 @@ main = do
   -- Run GTK.
   widgetShowAll window
   mainGUI
+
+select :: (MonadIO m, DocumentClass self) => self -> Text -> m Element
+select d s = do
+  r <- querySelector d s
+  case r of
+    Nothing -> error ("select: couldn't find " ++ show s)
+    Just e  -> return e
+
+value :: (MonadIO m, HTMLInputElementClass self) => self -> m Text
+value e = do
+  r <- I.getValue e
+  case r of
+    Nothing -> error "value: couldn't get value"
+    Just v  -> return v
 
 {-
 

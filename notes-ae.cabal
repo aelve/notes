@@ -28,6 +28,7 @@ executable notes
   build-depends:       base
                      , base-prelude
                      , gtk3
+                     , neat-interpolation < 0.4
                      , random
                      , text-all
                      , transformers
