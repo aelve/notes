@@ -49,14 +49,12 @@ main = do
   window `after` objectDestroy $
     mainQuit
 
-  v   <- vBoxNew False 2
-  bar <- entryNew
   sw  <- scrolledWindowNew Nothing Nothing
   wv  <- webViewNew
   set window [
     windowDefaultWidth := 700,
     windowDefaultHeight := 500,
-    containerChild := v,
+    containerChild := sw,
     containerBorderWidth := 2 ]
   wvs <- get wv webViewWebSettings
   set wvs [
@@ -70,14 +68,8 @@ main = do
     widgetShowAll iw
     return iwv
 
-  boxPackStart v bar PackNatural 0
-  boxPackStart v sw PackGrow 0
   set sw [
     containerChild := wv ]
-
-  bar `on` entryActivate $ do
-    url :: Text <- entryGetText bar
-    webViewLoadUri wv url
 
   webViewLoadString wv [text|
     <input type="text" id="input" placeholder="string to reverse">
