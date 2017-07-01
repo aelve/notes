@@ -27,7 +27,11 @@ executable notes
   -- other-extensions:    
   build-depends:       base
                      , base-prelude
+                     , gi-glib
+                     , gi-gtk
+                     , gi-webkit2
                      , gtk3
+                     , haskell-gi-base
                      , neat-interpolation < 0.4
                      , random
                      , text-all

@@ -1,3 +1,81 @@
+{-# LANGUAGE OverloadedStrings, OverloadedLabels, NoImplicitPrelude #-}
+
+import BasePrelude hiding (on, error)
+
+import GI.Gtk hiding (main)
+import qualified GI.Gtk as Gtk
+import qualified GI.GLib as GLib
+import GI.WebKit2
+
+import System.Mem (performGC)
+
+import qualified Data.Text.All as T
+
+import System.Environment (getProgName)
+
+main :: IO ()
+main = do
+  progName <- getProgName
+  args <- getArgs
+
+  -- We periodically perform a GC, in order to test that the
+  -- finalizers are not pointing to invalid regions. This is only for
+  -- testing, and not needed in production code.
+  _ <- GLib.timeoutAdd 0 5000 $ do
+         T.putStrLn "** (T) Going into GC"
+         performGC
+         T.putStrLn "** GC done"
+         return True
+
+  _ <- Gtk.init $ Just (map T.pack (progName : args))
+
+  win <- new Window [#type := WindowTypeToplevel,
+                     #iconName := "applications-haskell",
+                     #defaultWidth := 1024,
+                     #defaultHeight := 768]
+  on win #destroy mainQuit
+
+  scr <- new ScrolledWindow []
+
+  view <- new WebView []
+  on view #close $ #destroy win
+  #loadUri view "https://guide.aelve.com/haskell"
+
+  #add scr view
+  #add win scr
+
+  uriEntry <- new Entry [#placeholderText := "Type the address to load here",
+                         #widthChars := 50]
+  on uriEntry #activate $ do
+    uri <- uriEntry `get` #text
+    #loadUri view uri
+
+  header <- new HeaderBar [#showCloseButton := True,
+                           #customTitle := uriEntry,
+                           #title := "A simple WebKit browser"]
+  #setTitlebar win (Just header)
+
+  on view (PropertyNotify #estimatedLoadProgress) $ \_ -> do
+    status <- view `get` #estimatedLoadProgress
+    uriEntry `set` [#progressFraction := if status /= 1.0
+                                         then status
+                                         else 0]
+
+  on view #loadChanged $ \event -> do
+    putStrLn $ "Load: " <> show event
+
+  on view #loadFailed $ \_ uri error -> do
+    errMsg <- gerrorMessage error
+    T.putStrLn $ "Error when reading \"" <> uri <> "\": " <> errMsg
+    -- Keep processing, so WebKit shows the error page
+    return False
+
+  #showAll win
+
+  Gtk.main
+
+{-
+
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -76,6 +154,7 @@ main = do
     <div id="result" style="font-size:20px"></div>
   |] (Just "text/html") ""
 
+{-
   wv `on` documentLoadFinished $ \_ -> do
     Just doc <- webViewGetDomDocument wv
     input  <- castToHTMLInputElement <$> select doc "#input"
@@ -86,6 +165,7 @@ main = do
         val <- get input _value
         set result [_text := T.reverse val]
     return ()
+-}
 
   --wv `on` keyReleaseEvent $ tryEvent $ do
   --  [Control] <- eventModifier
@@ -176,5 +256,7 @@ main = do
 
   widgetShowAll window
   mainGUI
+
+-}
 
 -}
